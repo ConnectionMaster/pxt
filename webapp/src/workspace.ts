@@ -91,6 +91,11 @@ export function setupWorkspace(id: string) {
 }
 
 async function switchToMemoryWorkspace(reason: string): Promise<void> {
+    if (pxt.BrowserUtils.isWinRT()) {
+        // windows app can fail on occasion, in particular when deleting projects;
+        // ignore and keep trying to read from / write.
+        return;
+    }
     pxt.log(`workspace: error '${reason}', switching from ${implType} to memory workspace`);
 
     const expectedMemWs = pxt.appTarget.appTheme.disableMemoryWorkspaceWarning
@@ -123,10 +128,11 @@ async function switchToMemoryWorkspace(reason: string): Promise<void> {
 
 export function getHeaders(withDeleted = false) {
     maybeSyncHeadersAsync();
-    const cloudUserId = auth.user()?.id;
+    const cloudUserId = auth.userProfile()?.id;
     let r = allScripts.map(e => e.header).filter(h =>
         (withDeleted || !h.isDeleted) &&
         !h.isBackup &&
+        !h.isSkillmapProject &&
         (!h.cloudUserId || h.cloudUserId === cloudUserId))
     r.sort((a, b) => {
         const aTime = a.cloudUserId ? Math.min(a.cloudLastSyncTime, a.modificationTime) : a.modificationTime
@@ -218,8 +224,8 @@ function refreshHeadersSession() {
     if (isHeadersSessionOutdated()) {
         pxt.storage.setLocal('workspacesessionid', sessionID);
         pxt.debug(`workspace: refreshed headers session to ${sessionID}`);
-        data.invalidate("header:*");
-        data.invalidate("text:*");
+        pxt.data.invalidate("header:*");
+        pxt.data.invalidate("text:*");
     }
 }
 // this is an identifier for the current frame
@@ -252,9 +258,9 @@ export function getHeaderLastCloudSync(h: Header): number {
     return h.cloudLastSyncTime || 0/*never*/
 }
 export function getLastCloudSync(): number {
-    if (!auth.loggedInSync())
+    if (!auth.loggedIn())
         return 0;
-    const userId = auth.user()?.id;
+    const userId = auth.userProfile()?.id;
     const cloudHeaders = getHeaders(true)
         .filter(h => h.cloudUserId && h.cloudUserId === userId);
     if (!cloudHeaders.length)
@@ -469,7 +475,7 @@ export async function saveAsync(h: Header, text?: ScriptText, fromCloudSync?: bo
         allScripts.push(e)
     }
 
-    const hasUserFileChanges = async () => {
+    const hasUserFileChanges = () => {
         // we see lots of frequent "saves" that don't come from real changes made by the user. This
         // causes problems for cloud sync since this can cause us to think the user is making when
         // just reading a project. The "correct" solution would be to have a full history and .gitignore
@@ -496,18 +502,18 @@ export async function saveAsync(h: Header, text?: ScriptText, fromCloudSync?: bo
 
         return hasUserChanges;
     }
+    const isHeaderOnlyChange = !fromCloudSync && !text;
     const isUserChange = !fromCloudSync
-        && (h.isDeleted || text && await hasUserFileChanges())
-    if (isUserChange) {
+        && (h.isDeleted || text && hasUserFileChanges())
+    if (isHeaderOnlyChange || isUserChange) {
         h.pubCurrent = false
-        h.blobCurrent_ = false
         h.cloudCurrent = false
         h.modificationTime = U.nowSeconds();
         h.targetVersion = h.targetVersion || "0.0.0";
 
         // cloud user association
-        if (auth.hasIdentity() && auth.loggedInSync()) {
-            h.cloudUserId = auth.user()?.id
+        if (auth.hasIdentity() && auth.loggedIn()) {
+            h.cloudUserId = auth.userProfile()?.id
         }
     }
 
@@ -518,24 +524,18 @@ export async function saveAsync(h: Header, text?: ScriptText, fromCloudSync?: bo
         // persist header changes to our local cache, but keep the old
         // reference around because (unfortunately) other layers (e.g. package.ts)
         // assume the reference is stable per id.
-        Object.assign(e.header, h)
+        Object.assign(e.header, h);
+        // Delete keys from `e.header` that don't exist in `h`. This will clear cloud state
+        // from the header in the case where the project is being exported to local from cloud.
+        Object.keys(e.header)
+            .filter(key => h[key as keyof Header] === undefined)
+            .forEach(key => delete e.header[key as keyof Header]);
         h = e.header;
     }
     if (text)
         e.text = text
     if (text || h.isDeleted) {
         h.saveId = null
-    }
-
-    // perma-delete
-    if (h.isDeleted && h.blobVersion_ == "DELETED") {
-        let idx = allScripts.indexOf(e)
-        U.assert(idx >= 0)
-        allScripts.splice(idx, 1)
-        return headerQ.enqueue(h.id, () =>
-            fixupVersionAsync(e).then(() =>
-                impl.deleteAsync ? impl.deleteAsync(h, e.version) : impl.setAsync(h, e.version, {})))
-            .finally(() => refreshHeadersSession())
     }
 
     // check if we have dynamic boards, store board info for home page rendering
@@ -570,19 +570,18 @@ export async function saveAsync(h: Header, text?: ScriptText, fromCloudSync?: bo
 
         if (isUserChange) {
             h.pubCurrent = false;
-            h.blobCurrent_ = false;
             h.cloudCurrent = false;
             h.saveId = null;
         }
 
         if (text || h.isDeleted) {
-            data.invalidate("text:" + h.id);
-            data.invalidate("pkg-git-status:" + h.id);
+            pxt.data.invalidate("text:" + h.id);
+            pxt.data.invalidate("pkg-git-status:" + h.id);
         }
         data.invalidateHeader("header", h);
         if (newSave) {
             // the count of headers has changed
-            data.invalidate("headers:");
+            pxt.data.invalidate("headers:");
         }
 
         refreshHeadersSession();
@@ -608,11 +607,11 @@ export function importAsync(h: Header, text: ScriptText, isCloud = false) {
     return forceSaveAsync(h, text, isCloud)
 }
 
-export function installAsync(h0: InstallHeader, text: ScriptText) {
+export function installAsync(h0: InstallHeader, text: ScriptText, dontOverwriteID = false) {
     U.assert(h0.target == pxt.appTarget.id);
 
     const h = <Header>h0
-    h.id = ts.pxtc.Util.guidGen();
+    if (!dontOverwriteID) h.id = ts.pxtc.Util.guidGen();
     h.recentUse = U.nowSeconds()
     h.modificationTime = h.recentUse;
 
@@ -625,11 +624,6 @@ export function installAsync(h0: InstallHeader, text: ScriptText) {
     return pxt.github.cacheProjectDependenciesAsync(cfg)
         .then(() => importAsync(h, text))
         .then(() => h);
-}
-
-export function renameAsync(h: Header, newName: string) {
-    checkHeaderSession(h);
-    return cloudsync.renameAsync(h, newName);
 }
 
 export async function duplicateAsync(h: Header, newName?: string): Promise<Header> {
@@ -711,7 +705,13 @@ export async function getPublishedScriptAsync(id: string) {
                 files = await (Cloud.downloadScriptFilesAsync(id)
                     .catch(core.handleNetworkError))
             }
-            await scripts.setAsync({ id: eid, files: files })
+            try {
+                await scripts.setAsync({ id: eid, files: files })
+            }
+            catch (e) {
+                // Don't fail if the indexeddb fails, but log it
+                pxt.log("Unable to cache script in DB");
+            }
         }
         return fixupFileNames(files)
     })
@@ -895,7 +895,7 @@ export async function commitAsync(hd: Header, options: CommitOptions = {}) {
     // add screenshots
     let blocksDiffSha: string;
     if (options
-        && treeUpdate.tree.find(e => e.path == "main.blocks")) {
+        && treeUpdate.tree.find(e => e.path == pxt.MAIN_BLOCKS)) {
         if (options.blocksScreenshotAsync) {
             const png = await options.blocksScreenshotAsync();
             if (png)
@@ -951,7 +951,7 @@ export async function commitAsync(hd: Header, options: CommitOptions = {}) {
     if (newCommit == null) {
         return commitId
     } else {
-        data.invalidate("gh-commits:*"); // invalid any cached commits
+        pxt.data.invalidate("gh-commits:*"); // invalid any cached commits
         // if we created a block preview, add as comment
         if (blocksDiffSha) {
             await pxt.github.postCommitComment(
@@ -1228,13 +1228,13 @@ export async function exportToGithubAsync(hd: Header, repoid: string) {
     })
 
     // assign ids to blockly blocks
-    const mainBlocks = files["main.blocks"];
+    const mainBlocks = files[pxt.MAIN_BLOCKS];
     if (mainBlocks) {
         const ws = pxt.blocks.loadWorkspaceXml(mainBlocks, true);
         if (ws) {
             const mainBlocksWithIds = pxt.blocks.saveWorkspaceXml(ws, true);
             if (mainBlocksWithIds)
-                files["main.blocks"] = mainBlocksWithIds;
+                files[pxt.MAIN_BLOCKS] = mainBlocksWithIds;
         }
     }
     // save updated files
@@ -1549,7 +1549,7 @@ export function syncAsync(): Promise<pxt.editor.EditorSyncState> {
                         data.invalidateHeader("header", hd);
                         data.invalidateHeader("text", hd);
                         data.invalidateHeader("pkg-git-status", hd);
-                        data.invalidate("gh-commits:*"); // invalidate commits just in case
+                        pxt.data.invalidate("gh-commits:*"); // invalidate commits just in case
                     }
                 } else {
                     ex = {
@@ -1560,7 +1560,7 @@ export function syncAsync(): Promise<pxt.editor.EditorSyncState> {
                 }
                 return ex;
             })
-            cloudsync.syncAsync(); // sync in background
+            Promise.all([cloudsync.syncAsync(), cloud.syncAsync()]); // sync in background
         })
         .then(() => {
             refreshHeadersSession();
@@ -1581,7 +1581,7 @@ export function resetAsync() {
         .then(compiler.clearApiInfoDbAsync)
         .then(() => {
             pxt.storage.clearLocal();
-            data.clearCache();
+            pxt.data.clearCache();
             // keep local token (localhost and electron) on reset
             if (Cloud.localToken)
                 pxt.storage.setLocal("local_token", Cloud.localToken);
@@ -1641,9 +1641,9 @@ export function dbgHdrToString(h: Header): string {
     header:*        - all headers
 */
 
-data.mountVirtualApi("header", {
+pxt.data.mountVirtualApi("header", {
     getSync: p => {
-        p = data.stripProtocol(p)
+        p = pxt.data.stripProtocol(p)
         if (p == "*") return getHeaders()
         return getHeader(p)
     },
@@ -1653,9 +1653,9 @@ data.mountVirtualApi("header", {
     headers:SEARCH   - search headers
 */
 
-data.mountVirtualApi("headers", {
+pxt.data.mountVirtualApi("headers", {
     getAsync: p => {
-        p = data.stripProtocol(p)
+        p = pxt.data.stripProtocol(p)
         const headers = getHeaders()
         if (!p) return Promise.resolve(headers)
         return compiler.projectSearchAsync({ term: p, headers })
@@ -1675,7 +1675,7 @@ data.mountVirtualApi("headers", {
     text:<guid>            - all files
     text:<guid>/<filename> - one file
 */
-data.mountVirtualApi("text", {
+pxt.data.mountVirtualApi("text", {
     getAsync: p => {
         const m = /^[\w\-]+:([^\/]+)(\/(.*))?/.exec(p)
         return getTextAsync(m[1])

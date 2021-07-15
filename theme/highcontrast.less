@@ -163,6 +163,10 @@
             .debuggerSuggestion {
                 color: @HCtextColor !important;
             }
+
+            .label {
+                color: @HCtextColor !important;
+            }
         }
     }
 
@@ -233,7 +237,7 @@
         color: @HCbackground !important;
     }
 
-    #mainmenu:not(.inverted), #homemenu:not(.inverted) {
+    #mainmenu:not(.inverted) {
         background-color: @HCmainMenuBackground !important;
         color: @HCmainMenuTextColor !important;
         border-bottom: 4px solid @HCtextColor;
@@ -245,7 +249,7 @@
             border: 1px solid @HCbackground !important;
         }
     }
-    #mainmenu.inverted, #homemenu.inverted {
+    #mainmenu.inverted {
         color: @HCmainMenuBackground !important;
         border-bottom: 4px solid @HCtextColor;
         background: @HCmainMenuTextColor !important;
@@ -443,6 +447,11 @@
         .homefooter i {
             color: @HCtextColor !important
         }
+
+        .getting-started-segment.hero .dots  button.active {
+            background: @selected !important;
+            border-color: @HCbackground !important;
+        }
     }
 
     #homescreen .ui.home .tutorial-progress.orange {
@@ -514,6 +523,24 @@
         background: @HCbackground;
         color: @HCtextColor;
         border: 2px solid @HCtextColor !important;
+    }
+
+    #notificationBanner {
+        background: @HCbackground !important;
+        border: 2px solid @HCtextColor !important;
+
+        .header {
+            color: @HCtextColor !important;
+        }
+    }
+
+    #winAppError {
+        img {
+            background-color: white;
+        }
+        #winAppErrorMsg {
+            color: @HCtextColor;
+        }
     }
 
     /* Cards */
@@ -891,8 +918,8 @@
 }
 
 @media (forced-colors: active) and (prefers-color-scheme: light) {
-    #homemenu .logo.organization img,
-    #homemenu .logo.brand img {
+    #mainmenu .logo.organization img,
+    #mainmenu .logo.brand img {
         filter: invert(1);
     }
 }

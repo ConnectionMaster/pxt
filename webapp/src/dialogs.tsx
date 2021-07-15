@@ -10,6 +10,8 @@ import * as cloudsync from "./cloudsync";
 import Cloud = pxt.Cloud;
 import Util = pxt.Util;
 
+let dontShowDownloadFlag = false;
+
 export function showAboutDialogAsync(projectView: pxt.editor.IProjectView) {
     const compileService = pxt.appTarget.compileService;
     const githubUrl = pxt.appTarget.appTheme.githubUrl;
@@ -687,6 +689,23 @@ export function showReportAbuseAsync(pubId?: string) {
     })
 }
 
+export function showWinAppDeprecateAsync() {
+    pxt.tickEvent("winApp.dialog", undefined)
+    return core.confirmAsync({
+        header: lf("You can't get there from here!"),
+        hideAgree: true,
+        hasCloseIcon: true,
+        helpUrl: "/windows-app",
+        jsx: <div>
+            <img className="ui medium centered image" src={pxt.appTarget.appTheme.winAppDeprImage} alt={lf("An image of a shrugging board")}/>
+            <div>
+                {lf("This app is being deprecated. Text editing is only available on the MakeCode website ")}
+                {`(https://${pxt.appTarget.name}).`}
+            </div>
+        </div>
+    })
+}
+
 export function showResetDialogAsync() {
     return core.confirmAsync({
         header: lf("Reset"),
@@ -713,4 +732,122 @@ export function promptTranslateBlock(blockid: string, blockTranslationIds: strin
             {blockTranslationIds.map(trid => <div key={`ictr${trid}`} className="ui basic segment">{trid}</div>)}
         </div>
     });
+}
+
+export function renderBrowserDownloadInstructions(saveonly?: boolean) {
+    const boardName = pxt.appTarget.appTheme.boardName || lf("device");
+    const boardDriveName = pxt.appTarget.appTheme.driveDisplayName || pxt.appTarget.compile.driveName || "???";
+    const fileExtension = pxt.appTarget.compile?.useUF2 ? ".uf2" : ".hex";
+    const webUSBSupported = pxt.usb.isEnabled && pxt.appTarget?.compile?.webUSB;
+
+    const onPairClicked = () => {
+        core.hideDialog();
+        pxt.commands.webUsbPairDialogAsync(pxt.usb.pairAsync, core.confirmAsync);
+    }
+
+    const onCheckboxClicked = (value: boolean) => {
+        const valueString = "" + value;
+        pxt.tickEvent("downloaddialog.dontshowagain", { checked: valueString });
+
+        dontShowDownloadFlag = value;
+    }
+
+    const image = pxt.appTarget.appTheme.downloadDialogTheme?.dragFileImage;
+    const columns = image ? "two" : "one";
+
+    return <div className="ui grid stackable upload">
+        <div className="column sixteen wide instructions">
+            <div className="ui grid">
+                <div className="row">
+                    <div className="column">
+                        <div className={`ui ${columns} column grid padded`}>
+                            <div className="column">
+                                <div className="ui">
+                                    <div className="content">
+                                        <div className="description">
+                                            {lf("Your code is being downloaded as a {1} file. You can drag this file to your {0} using your computer's file explorer.", boardName, fileExtension)}
+                                        </div>
+                                        {webUSBSupported &&
+                                            <div className="download-callout">
+                                                <label className="ui purple ribbon large label">{lf("New!")}</label>
+                                                <div className="ui two column grid">
+                                                    <div className="icon-align three wide column">
+                                                        <div />
+                                                        <i className="icon big usb"/>
+                                                        <div />
+                                                    </div>
+                                                    <div className="thirteen wide column">
+                                                        {lf("Download your code faster by pairing with web usb!")}
+                                                        <br/>
+                                                        <strong><a onClick={onPairClicked}>{lf("Pair now")}</a></strong>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            {image &&
+                                <div className="column">
+                                    <div className="ui">
+                                        <div className="image">
+                                            <img alt={lf("Comic moving {1} file to {0}", boardDriveName, fileExtension)} className="ui medium rounded image" src={image} />
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                {!saveonly &&
+                    <sui.Checkbox
+                        inputLabel={lf("Don't show this again")}
+                        onChange={onCheckboxClicked}
+                    />
+                }
+            </div>
+        </div>
+    </div>;
+}
+
+export function renderIncompatibleHardwareDialog() {
+    const boardName = pxt.appTarget.appTheme.boardName || lf("device");
+    const bodyText = lf("Oops! Looks like your project has code that won't run on the hardware you have connected. Would you like to download anyway?");
+    const helpText = lf("Learn more about what's supported by your hardware…")
+    const helpURL = pxt.appTarget.appTheme.downloadDialogTheme?.incompatibleHardwareHelpURL;
+    const imageURL = pxt.appTarget.appTheme.downloadDialogTheme?.incompatibleHardwareImage;
+    const columns = imageURL ? "two" : "one";
+
+    return <div className={`ui ${columns} column grid padded download-dialog`}>
+    <div className="column">
+        <div className="ui">
+            <div className="content">
+                <div className="description">
+                {bodyText}
+                <br />
+                {helpURL && <a target="_blank" rel="noopener noreferrer" href={helpURL}>{helpText}</a>}
+                </div>
+            </div>
+        </div>
+    </div>
+    {imageURL &&
+        <div className="column">
+            <div className="ui">
+                <div className="image download-dialog-image">
+                    <img alt={lf("Image of {0}", boardName)} className="ui medium rounded image" src={imageURL} />
+                </div>
+            </div>
+        </div>
+    }
+</div>
+}
+
+export function clearDontShowDownloadDialogFlag() {
+    dontShowDownloadFlag = false;
+}
+
+export function isDontShowDownloadDialogFlagSet() {
+    return dontShowDownloadFlag;
 }

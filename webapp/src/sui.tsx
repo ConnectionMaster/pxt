@@ -78,6 +78,7 @@ export interface DropdownProps extends UiProps {
     titleContent?: React.ReactNode;
     displayAbove?: boolean;
     displayRight?: boolean;
+    displayLeft?: boolean;
     dataTooltip?: string;
 }
 
@@ -140,11 +141,8 @@ export class DropdownMenu extends UIElement<DropdownProps, DropdownState> {
     }
 
     isChildFocused() {
-        const children = this.getChildren();
-        for (let i = 0; i < children.length; i++) {
-            if (document.activeElement === children[i]) return true;
-        }
-        return false;
+        const menu = this.refs["menu"] as HTMLElement;
+        return menu.contains(document.activeElement);
     }
 
     private navigateToNextElement = (e: KeyboardEvent, prev: HTMLElement, next: HTMLElement) => {
@@ -300,6 +298,10 @@ export class DropdownMenu extends UIElement<DropdownProps, DropdownState> {
         }, 1);
     }
 
+    protected captureMouseEvent = (e: React.MouseEvent) => {
+        e.stopPropagation();
+    }
+
     private focusFirst: boolean;
     private handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         const charCode = core.keyCodeFromEvent(e);
@@ -314,7 +316,8 @@ export class DropdownMenu extends UIElement<DropdownProps, DropdownState> {
     }
 
     renderCore() {
-        const { disabled, title, role, icon, className, titleContent, children, displayAbove, displayRight, dataTooltip } = this.props;
+        const { disabled, title, role, icon, className, titleContent, children,
+            displayAbove, displayLeft, displayRight, dataTooltip } = this.props;
         const { open } = this.state;
 
         const aria = {
@@ -335,7 +338,8 @@ export class DropdownMenu extends UIElement<DropdownProps, DropdownState> {
             icon ? 'icon' : '',
             className || '',
             displayAbove ? 'menuAbove' : '',
-            displayRight ? 'menuRight' : ''
+            displayRight ? 'menuRight' : '',
+            displayLeft ? "menuLeft" : '',
         ]);
         const menuClasses = cx([
             'menu',
@@ -356,7 +360,10 @@ export class DropdownMenu extends UIElement<DropdownProps, DropdownState> {
             >
                 {titleContent ? titleContent : genericContent(this.props)}
                 <div ref="menu" {...menuAria} className={menuClasses}
-                    role="menu">
+                    role="menu"
+                    onMouseDown={this.captureMouseEvent}
+                    onClick={this.captureMouseEvent}
+                >
                     {children}
                 </div>
             </div>);
@@ -480,6 +487,9 @@ export interface ItemProps extends UiProps {
     active?: boolean;
     value?: string;
     onClick?: () => void;
+    onMouseDown?: (e: any) => void;
+    onMouseUp?: (e: any) => void;
+    onMouseLeave?: (e: any) => void;
     onKeyDown?: (e: React.KeyboardEvent<HTMLElement>) => void;
 }
 
@@ -503,6 +513,11 @@ export class Item extends data.Component<ItemProps, {}> {
                 key={this.props.value}
                 data-value={this.props.value}
                 onClick={this.props.onClick}
+                onMouseDown={this.props.onMouseDown}
+                onTouchStart={this.props.onMouseDown}
+                onMouseUp={this.props.onMouseUp}
+                onTouchEnd={this.props.onMouseUp}
+                onMouseLeave={this.props.onMouseLeave}
                 onKeyDown={this.props.onKeyDown || fireClickOnEnter}>
                 {genericContent(this.props)}
                 {this.props.children}
@@ -1118,6 +1133,7 @@ export interface ModalButton {
     onclick?: () => (Promise<void> | void);
     resolveVal?: number;
     url?: string;
+    urlButton?: boolean;
     fileName?: string;
     loading?: boolean;
     disabled?: boolean;
@@ -1269,7 +1285,7 @@ export class Modal extends data.Component<ModalProps, ModalState> {
             'modal transition visible active',
             className
         ]);
-        const hc = this.getData<boolean>(auth.HIGHCONTRAST);
+        const hc = this.getData<boolean>(pxt.auth.HIGHCONTRAST);
         const portalClassName = cx([
             hc ? 'hc' : '',
             mountClasses
@@ -1326,7 +1342,7 @@ export class Modal extends data.Component<ModalProps, ModalState> {
                                 icon={action.icon}
                                 text={action.label}
                                 title={action.title || action.label}
-                                className={`ui button approve ${action.icon ? 'icon right' : ''} ${action.label ? 'labeled' : ''} ${action.className || ''} ${action.loading ? "loading disabled" : ""} ${action.disabled ? "disabled" : ""}`}
+                                className={`ui button approve ${action.icon ? 'icon right' : ''} ${(action.label && !action.urlButton) ? 'labeled' : ''} ${action.className || ''} ${action.loading ? "loading disabled" : ""} ${action.disabled ? "disabled" : ""}`}
                                 href={action.url}
                                 target={!action.fileName ? '_blank' : undefined}
                                 download={action.fileName ? pxt.Util.htmlEscape(action.fileName) : undefined}

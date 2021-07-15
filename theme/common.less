@@ -355,6 +355,41 @@ div.simframe > iframe {
     color: @mainMenuInvertedBackground !important;
 }
 
+.menubar {
+    .left.menu, .right.menu, .center.menu {
+        display: flex;
+        flex: 1;
+    }
+    .right.menu {
+        justify-content: flex-end;
+    }
+    .center.menu {
+        justify-content: center;
+    }
+
+    .ui.item {
+        margin: 0;
+    }
+
+    .ui.menu .brand {
+        &::before {
+            position: relative;
+            height: 1.5rem;
+            border-left: 2px solid @white;
+            content: " ";
+        }
+    }
+}
+
+.sandbox .menubar {
+    .logo.organization,
+    .logo.brand::before {
+        display: none;
+    }
+}
+
+
+
 /* toggle style */
 .ui.item.editor-menuitem .item.toggle {
     z-index: 1 !important;
@@ -443,20 +478,45 @@ div.simframe > iframe {
     margin: 0;
     padding: 0rem !important;
 }
-.ui.item.logo .name {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, inherit;
-    color: #666666;
-    padding: 0 0.3rem;
+.ui.menu .ui.item.logo:hover {
+    background: none;
 }
+
+.ui.item.logo.brand:hover {
+    cursor: pointer;
+}
+
+.inHome .ui.item.logo.brand:hover {
+    cursor: auto;
+}
+
+.ui.item.logo .name,
+.ui.item.logo .name-short {
+    font-family: Segoe UI, Tahoma, Geneva, Verdana;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-left: 1rem;
+    margin-bottom: 1px;
+}
+
+.ui.item.logo .name-short {
+    display: none;
+}
+
 .ui.item.logo svg {
     width: 1.2rem;
     height: 1.2rem;
 }
 
 .ui.item.logo img {
-    margin-left: 1rem;
-    margin-right: 1rem;
-    height: 1.6rem;
+    margin: 0 1rem;
+    height: 1.4rem;
+}
+
+/* Native Host (iOS app) back button */
+.nativeback.ui.item {
+    margin-right: -1rem;
 }
 
 /* Powered by Microsoft logo*/
@@ -907,6 +967,14 @@ p.ui.font.small {
     .hideEditorToolbar #filelist {
         display:none !important;
     }
+
+    // Menu bar text logos ("MakeCode Arcade")
+    .ui.item.logo .name {
+        display: none;
+    }
+    .ui.item.logo .name-short {
+        display: block;
+    }
 }
 
 /* Mobile only */
@@ -1094,9 +1162,122 @@ p.ui.font.small {
     font-size: 0.95rem;
 }
 
-#projectNameArea .cloudState {
-    color: rgba(0, 0, 0, 0.5);
+.cloudstatusarea {
+    color: @teal;
+    align-self: center;
+    display: flex;
+
+    .cloudicon {
+        margin-left: 0.5rem;
+    }
+
+    .cloudprogress {
+        margin-left: 0.5rem !important;
+    }
+
+    .cloudtext {
+        margin-left: 0.5rem;
+    }
+
+    .ui.loader:after {
+        border-top-color: @teal;
+    }
 }
+
+/*******************************
+        Download dialogs
+*******************************/
+
+.ui.modal .actions .dialog-help-large {
+    float: left;
+    margin-left: 4px;
+}
+
+.download-callout {
+    background-color: #EAE7FF;
+    color: #4C309D;
+    border-radius: 1em;
+    padding: 1em;
+    position: relative;
+    margin-top: 1.5rem;
+
+    .ui.purple.ribbon.large.label {
+        position: absolute;
+        left: -1.2rem;
+        top: -1rem;
+    }
+
+    a {
+        color: #4C309D;
+        cursor: pointer;
+    }
+}
+
+.ui.grid>.icon-align.wide.column {
+    display: flex;
+    flex-direction: column;
+
+    div {
+        flex-grow: 1;
+    }
+}
+
+.download-device-name {
+    color: #4C309D;
+}
+
+.header>.header-inline-icon ~ .header-title {
+    display: inline;
+}
+
+.download-dialog-image img {
+    max-height: 200px;
+    object-fit: contain;
+}
+
+.download-dialog .column .ui, .download-dialog .column .ui .content {
+    height: 100%;
+    display: flex;
+    height: 100%;
+    align-items: center;
+}
+
+#downloadArea button .icon.xicon {
+    font-family: "xicon";
+}
+
+.download-troubleshoot-header {
+    padding: 0 1rem;
+}
+
+.download-troubleshoot {
+    display: flex;
+    flex-direction: row;
+    margin-top: 1rem;
+
+    .download-column {
+        padding: 0 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .download-row {
+        padding-bottom: 1rem;
+        min-height: 30%;
+
+        img {
+            width: 300px;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+        }
+    }
+
+    .download-row.image-row {
+        flex: 2;
+    }
+}
+
 
 /*******************************
         Media Adjustments
@@ -1148,6 +1329,10 @@ p.ui.font.small {
         width: ~"calc(@{blocklyRowWidthTablet} - .25rem)";
         margin-right: 0 !important;
     }
+
+    .download-troubleshoot .download-column .download-row img {
+        width: 200px;
+    }
 }
 
 /* Mobile */
@@ -1178,6 +1363,10 @@ p.ui.font.small {
             width: 6.5rem !important;
             height: 5.5rem !important;
         }
+    }
+
+    .download-troubleshoot .download-column .download-row img {
+        width: 200px;
     }
 }
 
@@ -1226,10 +1415,7 @@ p.ui.font.small {
     #maineditor {
         left:@simulatorWidthSmall;
     }
-    /* Logo */
-    .ui.logo.brand .name {
-        display: none !important;
-    }
+
     /* Help card */
     #helpcard {
         top: auto;
@@ -1415,7 +1601,7 @@ p.ui.font.small {
         display:none;
     }
     /* Menu spacing */
-    #root:not(.sandbox) .menubar .ui.menu .item {
+    #root:not(.sandbox) .menubar .ui.menu .dropdown .item {
         padding: 0.3em !important;
     }
     #root .menubar .ui.menu .item.editor-menuitem .item {
@@ -1448,13 +1634,6 @@ p.ui.font.small {
         top: @sandboxMobileMenuHeight;
     }
 
-    /* Logo */
-    .ui.item.logo img {
-        height: 2.2rem;
-        width: auto;
-        margin-left: 0.4rem;
-        margin-right: 0.4rem;
-    }
     .ui.mini.image {
         display: block !important;
     }
@@ -1521,12 +1700,6 @@ p.ui.font.small {
         padding-bottom: 0.5rem;
     }
 
-    #mainmenu {
-        .ui.logo.brand,
-        .ui.logo.organization {
-            display: none !important;
-        }
-    }
     .fullscreensim .simtoolbar .ui.button {
         font-size: 1rem;
     }

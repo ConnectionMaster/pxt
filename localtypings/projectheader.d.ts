@@ -30,6 +30,7 @@ declare namespace pxt.workspace {
         extensionUnderTest?: string;
         // id of cloud user who created this project
         cloudUserId?: string;
+        isSkillmapProject?: boolean;
     }
 
     export interface Header extends InstallHeader {
@@ -41,11 +42,6 @@ declare namespace pxt.workspace {
 
         isDeleted: boolean; // mark whether or not a header has been deleted
         saveId?: any; // used to determine whether a project has been edited while we're saving to cloud
-
-        // DEPRECATED (formerly for cloud sync)
-        blobId_: string;       // id of the cloud blob holding this script
-        blobVersion_: string;  // version of the cloud blob
-        blobCurrent_: boolean; // has the current version of the script been pushed to cloud
 
         // For cloud sync (local only metadata)
         cloudVersion: string;     // The cloud-assigned version number (e.g. etag)

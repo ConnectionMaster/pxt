@@ -1,6 +1,6 @@
 {
   "name": "pxt-core",
-  "version": "6.13.29",
+  "version": "7.1.5",
   "description": "Microsoft MakeCode provides Blocks / JavaScript / Python tools and editors",
   "keywords": [
     "TypeScript",
@@ -122,10 +122,10 @@
     "highlight.js": "9.12.0",
     "jquery": "3.5.0",
     "merge-stream": "2.0.0",
-    "monaco-editor": "0.23.0",
+    "monaco-editor": "0.24.0",
     "pouchdb": "7.2.1",
     "pouchdb-adapter-memory": "7.2.1",
-    "pxt-blockly": "3.0.32",
+    "pxt-blockly": "3.0.35",
     "react": "16.8.3",
     "react-dom": "16.11.0",
     "react-modal": "3.3.2",

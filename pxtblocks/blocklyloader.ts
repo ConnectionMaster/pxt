@@ -268,6 +268,7 @@ namespace pxt.blocks {
         const itemCount = fieldValues ? fieldValues.length : 2;
         const mut = document.createElement('mutation');
         mut.setAttribute("items", "" + itemCount);
+        mut.setAttribute("horizontalafter", "" + itemCount);
         shadow.appendChild(mut);
 
         for (let i = 0; i < itemCount; i++) {
@@ -646,7 +647,7 @@ namespace pxt.blocks {
             block.setInputsInline(!fn.parameters || (fn.parameters.length < 4 && !fn.attributes.imageLiteral));
         }
 
-        const body = fn.parameters ? fn.parameters.filter(pr => pr.type == "() => void" || pr.type == "Action")[0] : undefined;
+        const body = fn.parameters?.find(pr => pxtc.parameterTypeIsArrowFunction(pr));
         if (body || hasHandler) {
             block.appendStatementInput("HANDLER")
                 .setCheck(null);
@@ -876,10 +877,7 @@ namespace pxt.blocks {
     }
 
     export function hasArrowFunction(fn: pxtc.SymbolInfo): boolean {
-        const r = fn.parameters
-            ? fn.parameters.filter(pr => pr.type === "Action" || /^\([^\)]*\)\s*=>/.test(pr.type))[0]
-            : undefined;
-        return !!r;
+        return !!fn.parameters?.some(pr => pxtc.parameterTypeIsArrowFunction(pr));
     }
 
     export function cleanBlocks() {
@@ -2623,7 +2621,8 @@ namespace pxt.blocks {
         const iconsMap: pxt.Map<string> = {
             number: pxt.blocks.defaultIconForArgType("number"),
             boolean: pxt.blocks.defaultIconForArgType("boolean"),
-            string: pxt.blocks.defaultIconForArgType("string")
+            string: pxt.blocks.defaultIconForArgType("string"),
+            Array: pxt.blocks.defaultIconForArgType("Array")
         };
         const customNames: pxsim.Map<string> = {};
 

@@ -46,7 +46,10 @@ export class ProfileDialog extends auth.Component<ProfileDialogProps, ProfileDia
         const isLoggedIn = this.isLoggedIn();
         if (!isLoggedIn) return null;
 
-        const user = this.getUser();
+        const user = this.getUserProfile();
+
+        const github = cloudsync.githubProvider();
+        const ghUser = github.user();
 
         return (
             <sui.Modal isOpen={this.state.visible} className="ui profiledialog" size="fullscreen"
@@ -57,7 +60,7 @@ export class ProfileDialog extends auth.Component<ProfileDialogProps, ProfileDia
                 closeOnEscape={false}
             >
                 <AccountPanel parent={this} />
-                <GitHubPanel parent={this} />
+                { ghUser ? <GitHubPanel parent={this} /> : undefined }
                 <FeedbackPanel parent={this} />
             </sui.Modal>
         );
@@ -73,12 +76,12 @@ type AccountPanelProps = PanelProps & {
 
 class AccountPanel extends sui.UIElement<AccountPanelProps, {}> {
 
-    handleSignoutClicked = () => {
-        auth.logout();
+    handleSignoutClicked = async () => {
+        await auth.logoutAsync();
     }
 
     handleDeleteAccountClick = async () => {
-        const profile = this.getData<auth.UserProfile>(auth.PROFILE)
+        const profile = this.getData<pxt.auth.UserProfile>(pxt.auth.USER_PROFILE)
         const result = await core.confirmAsync({
             header: lf("Delete Profile"),
             body: lf("Are you sure? This cannot be reversed! Your cloud-saved projects will be converted to local projects on this device."),
@@ -90,7 +93,7 @@ class AccountPanel extends sui.UIElement<AccountPanelProps, {}> {
             confirmationCheckbox: lf("I understand this is permanent. No undo.")
         });
         if (result) {
-            await auth.deleteAccount();
+            await auth.deleteProfileAsync();
             // Exit out of the profile screen.
             this.props.parent.hide();
             core.infoNotification(lf("Profile deleted!"));
@@ -98,8 +101,8 @@ class AccountPanel extends sui.UIElement<AccountPanelProps, {}> {
     }
 
     renderCore() {
-        const profile = this.getData<auth.UserProfile>(auth.PROFILE);
-        const provider = auth.identityProvider(profile.idp?.provider);
+        const profile = this.getData<pxt.auth.UserProfile>(pxt.auth.USER_PROFILE);
+        const provider = pxt.auth.identityProvider(profile.idp?.provider);
 
         const avatarElem = (
             <div className="profile-pic avatar">
@@ -225,10 +228,10 @@ class FeedbackPanel extends sui.UIElement<FeedbackPanelProps, {}> {
                     <label>{lf("Feedback")}</label>
                 </div>
                 <div className="row-span-two">
-                    {lf("What do you think about this feature? Is there something you'd like to change? Did you encounter issues? Please let us know on GitHub.")}
+                    {lf("What do you think about the Sign In & Cloud Save feature? Is there something you'd like to change? Did you encounter issues? Please let us know!")}
                 </div>
                 <div className="row-span-two">
-                    <sui.Link className="ui" text={lf("Feedback")} icon="external alternate" ariaLabel={lf("Provide feedback at GitHub")} href="https://github.com/microsoft/pxt-arcade/issues/new/choose" target="_blank" onKeyDown={sui.fireClickOnEnter} />
+                    <sui.Link className="ui" text={lf("Take the Survey")} icon="external alternate" ariaLabel={lf("Provide feedback at GitHub")} href="https://aka.ms/AAcnpaj" target="_blank" onKeyDown={sui.fireClickOnEnter} />
                 </div>
             </div>
         );

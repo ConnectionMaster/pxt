@@ -42,12 +42,6 @@ namespace pxt.editor {
         Expanded = "errorListExpanded"
     }
 
-    export enum TutorialCodeStatus {
-        Unknown = "Unknown",
-        Invalid = "Invalid",
-        Valid = "Valid"
-    }
-
     export interface IAppProps { }
     export interface IAppState {
         active?: boolean; // is this tab visible at all
@@ -96,6 +90,7 @@ namespace pxt.editor {
 
         home?: boolean;
         hasError?: boolean;
+        cancelledDownload?: boolean;
 
         simSerialActive?: boolean;
         deviceSerialActive?: boolean;
@@ -124,6 +119,7 @@ namespace pxt.editor {
         languageRestriction?: LanguageRestriction;
         preferredEditor?: string; // preferred editor to open, pxt.BLOCKS_PROJECT_NAME, ...
         extensionUnderTest?: string; // workspace id of the extension under test
+        skillmapProject?: boolean;
     }
 
     export interface ExampleImportOptions {
@@ -132,6 +128,17 @@ namespace pxt.editor {
         loadBlocks?: boolean;
         prj?: ProjectTemplate;
         preferredEditor?: string;
+    }
+
+    export interface StartActivityOptions {
+        activity: Activity;
+        path: string;
+        title?: string;
+        editor?: string;
+        focus?: boolean;
+        importOptions?: pxt.editor.ExampleImportOptions;
+        previousProjectHeaderId?: string;
+        carryoverPreviousCode?: boolean;
     }
 
     export interface ProjectFilters {
@@ -213,6 +220,7 @@ namespace pxt.editor {
         reloadHeaderAsync(): Promise<void>;
         importProjectAsync(prj: pxt.workspace.Project, editorState?: pxt.editor.EditorState): Promise<void>;
         importTutorialAsync(markdown: string): Promise<void>;
+        openProjectByHeaderIdAsync(headerId: string): Promise<void>;
         overrideTypescriptFile(text: string): void;
         overrideBlocksFile(text: string): void;
 
@@ -251,7 +259,8 @@ namespace pxt.editor {
         completeTutorialAsync(): Promise<void>;
         showTutorialHint(): void;
         isTutorial(): boolean;
-        setTutorialCodeStatus(step: number, status: TutorialCodeStatus): void;
+        onTutorialLoaded(): void;
+        setTutorialCodeStatus(step: number, status: pxt.tutorial.TutorialRuleStatus[]): void;
         pokeUserActivity(): void;
         stopPokeUserActivity(): void;
         clearUserPoke(): void;
@@ -300,6 +309,7 @@ namespace pxt.editor {
         loadBlocklyAsync(): Promise<void>;
         isBlocksEditor(): boolean;
         isTextEditor(): boolean;
+        isPxtJsonEditor(): boolean;
         blocksScreenshotAsync(pixelDensity?: number, encodeBlocks?: boolean): Promise<string>;
         renderBlocksAsync(req: EditorMessageRenderBlocksRequest): Promise<EditorMessageRenderBlocksResponse>;
         renderPythonAsync(req: EditorMessageRenderPythonRequest): Promise<EditorMessageRenderPythonResponse>;
@@ -321,7 +331,7 @@ namespace pxt.editor {
 
         editor: IEditor;
 
-        startActivity(activitity: Activity, path: string, title?: string, editor?: string, focus?: boolean, opts?: pxt.editor.ExampleImportOptions): void;
+        startActivity(options: StartActivityOptions): void;
         showLightbox(): void;
         hideLightbox(): void;
         showKeymap(show: boolean): void;
@@ -410,6 +420,7 @@ namespace pxt.editor {
         saveProjectAsync?: (project: pxt.cpp.HexFile) => Promise<void>;
         renderBrowserDownloadInstructions?: () => any /* JSX.Element */;
         renderUsbPairDialog?: (firmwareUrl?: string, failedOnce?: boolean) => any /* JSX.Element */;
+        renderIncompatibleHardwareDialog?: (unsupportedParts: string[]) => any /* JSX.Element */;
         showUploadInstructionsAsync?: (fn: string, url: string, confirmAsync: (options: any) => Promise<number>) => Promise<void>;
         toolboxOptions?: IToolboxOptions;
         blocklyPatch?: (pkgTargetVersion: string, dom: Element) => void;
@@ -563,6 +574,7 @@ namespace pxt.editor {
         name?: string;
         download?: string;
         save?: string;
+        cmd?: string;
     }
 
     export let HELP_IMAGE_URI = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjYiIGhlaWdodD0iMjYiIHZpZXdCb3g9IjAgMCAyNiAyNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTMiIGN5PSIxMyIgcj0iMTMiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0xNy45NTIgOS4xODQwMkMxNy45NTIgMTAuMjU2IDE3LjgxNiAxMS4wNzIgMTcuNTQ0IDExLjYzMkMxNy4yODggMTIuMTkyIDE2Ljc1MiAxMi43OTIgMTUuOTM2IDEzLjQzMkMxNS4xMiAxNC4wNzIgMTQuNTc2IDE0LjU4NCAxNC4zMDQgMTQuOTY4QzE0LjA0OCAxNS4zMzYgMTMuOTIgMTUuNzM2IDEzLjkyIDE2LjE2OFYxNi45NkgxMS44MDhDMTEuNDI0IDE2LjQ2NCAxMS4yMzIgMTUuODQgMTEuMjMyIDE1LjA4OEMxMS4yMzIgMTQuNjg4IDExLjM4NCAxNC4yODggMTEuNjg4IDEzLjg4OEMxMS45OTIgMTMuNDg4IDEyLjUzNiAxMi45NjggMTMuMzIgMTIuMzI4QzE0LjEwNCAxMS42NzIgMTQuNjI0IDExLjE2OCAxNC44OCAxMC44MTZDMTUuMTM2IDEwLjQ0OCAxNS4yNjQgOS45NjgwMiAxNS4yNjQgOS4zNzYwMkMxNS4yNjQgOC4yMDgwMiAxNC40MTYgNy42MjQwMiAxMi43MiA3LjYyNDAyQzExLjc2IDcuNjI0MDIgMTAuNzUyIDcuNzM2MDIgOS42OTYgNy45NjAwMkw5LjE0NCA4LjA4MDAyTDkgNi4wODgwMkMxMC40ODggNS41NjAwMiAxMS44NCA1LjI5NjAyIDEzLjA1NiA1LjI5NjAyQzE0LjczNiA1LjI5NjAyIDE1Ljk2OCA1LjYwODAyIDE2Ljc1MiA2LjIzMjAyQzE3LjU1MiA2Ljg0MDAyIDE3Ljk1MiA3LjgyNDAyIDE3Ljk1MiA5LjE4NDAyWk0xMS40IDIyVjE4LjY0SDE0LjE4NFYyMkgxMS40WiIgZmlsbD0iIzU5NUU3NCIvPgo8L3N2Zz4K';

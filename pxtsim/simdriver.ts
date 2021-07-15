@@ -381,12 +381,27 @@ namespace pxsim {
                 if (!frame.contentWindow) continue;
 
                 // finally, send the message
-                frame.contentWindow.postMessage(msg, frame.dataset['origin']);
+                this.postMessageCore(frame, msg);
 
                 // don't start more than 1 recorder
                 if (msg.type == 'recorder'
                     && (<pxsim.SimulatorRecorderMessage>msg).action == "start")
                     break;
+            }
+        }
+
+        private postMessageCore(frame: HTMLIFrameElement, msg: SimulatorMessage) {
+            frame.contentWindow.postMessage(msg, frame.dataset['origin']);
+
+            if (U.isLocalHostDev() && (pxt as any)?.appTarget?.id) {
+                // If using the production simulator on local serve, the domain might have been
+                // redirected by the CLI server. Also send to the production domain just in case
+                try {
+                    frame.contentWindow.postMessage(msg, `https://trg-${(pxt as any)?.appTarget?.id}.userpxt.io/---simulator`);
+                }
+                catch (e) {
+                    // Ignore exceptions if the target origin doesn't match
+                }
             }
         }
 
@@ -629,6 +644,7 @@ namespace pxsim {
 
         public restart() {
             this.stop();
+            this.cleanupFrames();
             this.start();
         }
 
@@ -676,7 +692,7 @@ namespace pxsim {
                 msg.traceDisabled = true;
                 msg.breakOnStart = false;
             }
-            frame.contentWindow.postMessage(msg, frame.dataset['origin']);
+            this.postMessageCore(frame, msg);
             if (this.traceInterval) this.setTraceInterval(this.traceInterval);
             this.applyAspectRatioToFrame(frame);
             this.setFrameState(frame);
@@ -702,11 +718,15 @@ namespace pxsim {
                     const frame = document.getElementById(frameid) as HTMLIFrameElement;
                     if (frame) {
                         const stmsg = msg as SimulatorStateMessage;
-                        switch (stmsg.state) {
-                            case "killed":
-                                if (stmsg.runtimeid == frame.dataset['runtimeid'])
+                        if (stmsg.runtimeid == frame.dataset['runtimeid']) {
+                            switch (stmsg.state) {
+                                case "running":
+                                    this.setState(SimulatorState.Running);
+                                    break;
+                                case "killed":
                                     this.setState(SimulatorState.Stopped);
-                                break;
+                                    break;
+                            }
                         }
                     }
                     break;

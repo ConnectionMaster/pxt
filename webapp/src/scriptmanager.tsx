@@ -137,7 +137,7 @@ export class ScriptManagerDialog extends data.Component<ScriptManagerDialogProps
             this.setState({ selected: {} })
             return Promise.all(promises)
                 .then(() => {
-                    data.clearCache();
+                    pxt.data.clearCache();
                 });
         }, selectedLength > 1);
     }
@@ -183,14 +183,10 @@ export class ScriptManagerDialog extends data.Component<ScriptManagerDialogProps
                 return false; // null means cancelled
             return workspace.duplicateAsync(header, res)
                 .then(clonedHeader => {
-                    delete clonedHeader.blobId_
-                    delete clonedHeader.blobVersion_
-                    delete clonedHeader.blobCurrent_
-
                     return workspace.saveAsync(clonedHeader);
                 })
                 .then(() => {
-                    data.invalidate(`headers:${this.state.searchFor}`);
+                    pxt.data.invalidate(`headers:${this.state.searchFor}`);
                     this.setState({ selected: {}, markedNew: { '0': 1 }, sortedBy: 'time', sortedAsc: false });
                     setTimeout(() => {
                         this.setState({ markedNew: {} });
@@ -376,7 +372,11 @@ export class ScriptManagerDialog extends data.Component<ScriptManagerDialogProps
                     <div role="button" className="ui container fluid" style={{ height: "100%" }} onClick={this.handleAreaClick} onKeyDown={this.handleKeyDown}>
                         <div className="sort-by">
                             <div role="menu" className="ui compact buttons">
-                                <sui.DropdownMenu role="menuitem" text={sortedBy == 'time' ? lf("Last Modified") : lf("Name")} title={lf("Sort by dropdown")} className={`inline button ${darkTheme ? 'inverted' : ''}`}>
+                                <sui.DropdownMenu
+                                    role="menuitem" text={sortedBy == 'time' ? lf("Last Modified") : lf("Name")}
+                                    title={lf("Sort by dropdown")} className={`inline button ${darkTheme ? 'inverted' : ''}`}
+                                    displayLeft
+                                >
                                     <sui.Item role="menuitem" icon={sortedBy == 'name' ? 'check' : undefined} className={`${sortedBy != 'name' ? 'no-icon' : ''} ${darkTheme ? 'inverted' : ''}`} text={lf("Name")} tabIndex={-1} onClick={this.handleSortName} />
                                     <sui.Item role="menuitem" icon={sortedBy == 'time' ? 'check' : undefined} className={`${sortedBy != 'time' ? 'no-icon' : ''} ${darkTheme ? 'inverted' : ''}`} text={lf("Last Modified")} tabIndex={-1} onClick={this.handleSortTime} />
                                 </sui.DropdownMenu>

@@ -30,7 +30,8 @@ export interface EditorViewState {
     currentMapId: string;
     currentActivityId: string;
     allowCodeCarryover: boolean;
-    state: "active" | "saving" | "reload" | "reloading";
+    previousHeaderId?: string;
+    state: "active" | "saving";
 }
 
 interface ModalState {
@@ -61,6 +62,8 @@ const initialState: SkillMapState = {
         unlockedNodeForeground: "#000000",
         lockedNodeColor: "#BFBFBF",
         lockedNodeForeground: "#000000",
+        completedNodeColor: "var(--secondary-color)",
+        completedNodeForeground: "#000000",
         selectedStrokeColor: "var(--hover-color)",
         pathOpacity: 0.5,
     },
@@ -127,7 +130,8 @@ const topReducer = (state: SkillMapState = initialState, action: any): SkillMapS
                     currentMapId: action.mapId,
                     currentActivityId: action.activityId,
                     state: "active",
-                    allowCodeCarryover: shouldAllowCodeCarryover(state, action.mapId, action.activityId),
+                    allowCodeCarryover: !!action.carryoverCode,
+                    previousHeaderId: action.previousHeaderId,
                     currentHeaderId: lookupActivityProgress(
                         state.user,
                         state.pageSourceUrl,
@@ -173,7 +177,8 @@ const topReducer = (state: SkillMapState = initialState, action: any): SkillMapS
                     state: "active",
                     currentMapId: action.mapId,
                     currentActivityId: action.activityId,
-                    allowCodeCarryover: shouldAllowCodeCarryover(state, action.mapId, action.activityId),
+                    allowCodeCarryover: !!action.carryoverCode,
+                    previousHeaderId: action.previousHeaderId
                 },
                 user: setHeaderIdForActivity(
                     state.user,
@@ -197,16 +202,9 @@ const topReducer = (state: SkillMapState = initialState, action: any): SkillMapS
                     action.activityId,
                     action.id,
                     action.currentStep,
-                    action.maxSteps
+                    action.maxSteps,
+                    action.isCompleted
                 )
-            };
-        case actions.SET_RELOAD_HEADER_STATE:
-            return {
-                ...state,
-                editorView: state.editorView ? {
-                    ...state.editorView,
-                    state: action.state
-                } : undefined
             };
         case actions.SET_USER:
             const pageSourceUrl = state.pageSourceUrl;

@@ -168,6 +168,7 @@ export interface DialogOptions {
     modalContext?: string;
     hasCloseIcon?: boolean;
     helpUrl?: string;
+    bigHelpButton?: boolean;
     confirmationText?: string;      // Display a text input the user must type to confirm.
     confirmationCheckbox?: string;  // Display a checkbox the user must check to confirm.
     confirmationGranted?: boolean;
@@ -187,12 +188,23 @@ export function dialogAsync(options: DialogOptions): Promise<void> {
         })
     }
     if (options.helpUrl) {
-        options.buttons.unshift({
-            className: "circular help",
-            title: lf("Help"),
-            icon: "help",
-            url: options.helpUrl
-        })
+        if (options.bigHelpButton) {
+            options.buttons.unshift({
+                className: "dialog-help-large help",
+                urlButton: true,
+                label: lf("Help"),
+                title: lf("Help"),
+                url: options.helpUrl
+            });
+        }
+        else {
+            options.buttons.unshift({
+                className: "circular help",
+                title: lf("Help"),
+                icon: "help",
+                url: options.helpUrl
+            });
+        }
     }
     return coretsx.renderConfirmDialogAsync(options as PromptOptions);
 }
@@ -287,7 +299,7 @@ export const ENTER_KEY = 13;
 export const SPACE_KEY = 32;
 
 export function getHighContrastOnce(): boolean {
-    return data.getData<boolean>(auth.HIGHCONTRAST) || false
+    return pxt.data.getData<boolean>(pxt.auth.HIGHCONTRAST) || false
 }
 export function toggleHighContrast() {
     setHighContrast(!getHighContrastOnce())
@@ -325,28 +337,6 @@ export function findChild(c: React.Component<any, any>, selector: string): Eleme
     let self = ReactDOM.findDOMNode(c);
     if (!selector) return [self]
     return pxt.Util.toArray(self.querySelectorAll(selector));
-}
-
-export function parseQueryString(qs: string) {
-    let r: pxt.Map<string> = {}
-
-    qs.replace(/\+/g, " ").replace(/([^#?&=]+)=([^#?&=]*)/g, (f: string, k: string, v: string) => {
-        r[decodeURIComponent(k)] = decodeURIComponent(v)
-        return ""
-    })
-    return r
-}
-
-export function stringifyQueryString(url: string, qs: any) {
-    for (let k of Object.keys(qs)) {
-        if (url.indexOf("?") >= 0) {
-            url += "&"
-        } else {
-            url += "?"
-        }
-        url += encodeURIComponent(k) + "=" + encodeURIComponent(qs[k])
-    }
-    return url
 }
 
 export function handleNetworkError(e: any, ignoredCodes?: number[]) {

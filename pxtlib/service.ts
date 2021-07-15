@@ -25,6 +25,7 @@ namespace ts.pxtc {
     export const BINARY_UF2 = "binary.uf2";
     export const BINARY_ELF = "binary.elf";
     export const BINARY_PXT64 = "binary.pxt64";
+    export const BINARY_ESP = "binary.bin";
 
     export const NATIVE_TYPE_THUMB = "thumb";
     export const NATIVE_TYPE_VM = "vm";
@@ -287,6 +288,7 @@ namespace ts.pxtc {
         args: CellInfo[];
         localsMark: number;
         calls: ProcCallInfo[];
+        size: number;
     }
 
     export const enum BitSize {
@@ -589,9 +591,12 @@ namespace ts.pxtc {
                     if (s.kind == SymbolKind.Method || s.kind == SymbolKind.Property) {
                         b += " %" + s.namespace.toLowerCase()
                     }
-                    for (let p of s.parameters || []) {
+
+                    const params = s.parameters?.filter(pr => !parameterTypeIsArrowFunction(pr)) ?? [];
+                    for (let p of params) {
                         b += " %" + p.name
                     }
+
                     s.attributes.block = b
                     updateBlockDef(s.attributes)
                 }
@@ -633,6 +638,29 @@ namespace ts.pxtc {
         }
     }
 
+
+    export function tsSnippetToPySnippet(param: string, symbol?: SymbolInfo): string {
+        const keywords: pxt.Map<string> = {
+            "true": "True",
+            "false": "False",
+            "null": "None"
+        }
+        const key = keywords[param];
+        if (key) {
+            return key
+        }
+        if ((symbol && symbol.kind == SymbolKind.Enum) || (!symbol && param.includes("."))) {
+            // Python enums are all caps
+            const dotIdx = param.lastIndexOf(".");
+            const left = param.substr(0, dotIdx)
+            let right = param.substr(dotIdx + 1)
+            right = U.snakify(right).toUpperCase();
+            return `${left}.${right}`
+        }
+        return param;
+    }
+
+
     export let apiLocalizationStrings: pxt.Map<string> = {};
 
     export async function localizeApisAsync(apis: pxtc.ApisInfo, mainPkg: pxt.MainPackage): Promise<pxtc.ApisInfo> {
@@ -649,9 +677,13 @@ namespace ts.pxtc {
         if (apiLocalizationStrings)
             Util.jsonMergeFrom(loc, apiLocalizationStrings);
 
-        await Util.promiseMapAll(Util.values(apis.byQName), async fn => {
+        const toLocalize = Util.values(apis.byQName).filter(fn => fn.attributes._translatedLanguageCode !== lang);
+        await Util.promiseMapAll(toLocalize, async fn => {
             const altLocSrc = fn.attributes.useLoc || fn.attributes.blockAliasFor;
             const altLocSrcFn = altLocSrc && apis.byQName[altLocSrc];
+
+            if (fn.attributes._untranslatedJsDoc) fn.attributes.jsDoc = fn.attributes._untranslatedJsDoc;
+            if (fn.attributes._untranslatedBlock) fn.attributes.jsDoc = fn.attributes._untranslatedBlock;
 
             const lookupLoc = (locSuff: string, attrKey: string) => {
                 return loc[fn.qName + locSuff] || fn.attributes.locs?.[attrKey]
@@ -660,7 +692,9 @@ namespace ts.pxtc {
 
             const locJsDoc = lookupLoc("", attrJsLocsKey);
             if (locJsDoc) {
-                fn.attributes._untranslatedJsDoc = fn.attributes.jsDoc;
+                if (!fn.attributes._untranslatedJsDoc) {
+                    fn.attributes._untranslatedJsDoc = fn.attributes.jsDoc;
+                }
                 fn.attributes.jsDoc = locJsDoc;
             }
 
@@ -710,7 +744,9 @@ namespace ts.pxtc {
                         error: err,
                     });
                 });
-                fn.attributes._untranslatedBlock = oldBlock;
+                if (!fn.attributes._untranslatedBlock) {
+                    fn.attributes._untranslatedBlock = oldBlock;
+                }
                 if (oldBlock != fn.attributes.block) {
                     updateBlockDef(fn.attributes);
                     const locps = pxt.blocks.compileInfo(fn);
@@ -727,6 +763,7 @@ namespace ts.pxtc {
             } else {
                 updateBlockDef(fn.attributes);
             }
+            fn.attributes._translatedLanguageCode = lang;
         });
 
         return cleanLocalizations(apis);
@@ -761,7 +798,7 @@ namespace ts.pxtc {
         let cs = pxt.appTarget.compileService
         if (!cs) cs = {} as any
         const pio = !!cs.platformioIni;
-        const docker = cs.buildEngine == "dockermake" || cs.buildEngine == "dockercross";
+        const docker = cs.buildEngine == "dockermake" || cs.buildEngine == "dockercross" || cs.buildEngine == "dockerespidf";
         const r: ExtensionInfo = {
             functions: [],
             generatedFiles: {},
@@ -805,7 +842,7 @@ namespace ts.pxtc {
         let didSomething = true
         while (didSomething) {
             didSomething = false
-            cmt = cmt.replace(/\/\/%[ \t]*([\w\.]+)(=(("[^"\n]*")|'([^'\n]*)'|([^\s]*)))?/,
+            cmt = cmt.replace(/\/\/%[ \t]*([\w\.-]+)(=(("[^"\n]*")|'([^'\n]*)'|([^\s]*)))?/,
                 (f: string, n: string, d0: string, d1: string,
                     v0: string, v1: string, v2: string) => {
                     let v = v0 ? JSON.parse(v0) : (d0 ? (v0 || v1 || v2) : "true");
@@ -956,6 +993,10 @@ namespace ts.pxtc {
         updateBlockDef(res);
 
         return res
+    }
+
+    export function parameterTypeIsArrowFunction(pr: pxtc.ParameterDesc) {
+        return pr.type === "Action" || /^\([^\)]*\)\s*=>/.test(pr.type);
     }
 
     export function updateBlockDef(attrs: CommentAttrs) {

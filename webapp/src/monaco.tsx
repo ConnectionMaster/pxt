@@ -365,7 +365,7 @@ export class Editor extends toolboxeditor.ToolboxEditor {
     private exceptionChangesListeners: pxt.Map<(exception: pxsim.DebuggerBreakpointMessage, locations: pxtc.LocationInfo[]) => void> = {}
     private callLocations: pxtc.LocationInfo[];
 
-    private userPreferencesSubscriber: data.DataSubscriber = {
+    private userPreferencesSubscriber: pxt.data.DataSubscriber = {
         subscriptions: [],
         onDataChanged: () => {
             this.onUserPreferencesChanged();
@@ -385,11 +385,11 @@ export class Editor extends toolboxeditor.ToolboxEditor {
         this.startDebugger = this.startDebugger.bind(this)
         this.onUserPreferencesChanged = this.onUserPreferencesChanged.bind(this);
 
-        data.subscribe(this.userPreferencesSubscriber, auth.HIGHCONTRAST);
+        pxt.data.subscribe(this.userPreferencesSubscriber, pxt.auth.HIGHCONTRAST);
     }
 
     onUserPreferencesChanged() {
-        const hc = data.getData<boolean>(auth.HIGHCONTRAST);
+        const hc = pxt.data.getData<boolean>(pxt.auth.HIGHCONTRAST);
 
         if (this.loadMonacoPromise) this.defineEditorTheme(hc, true);
     }
@@ -404,10 +404,15 @@ export class Editor extends toolboxeditor.ToolboxEditor {
         pxt.tickEvent(`typescript.showBlocks`);
         let initPromise = Promise.resolve();
 
+        const isWinApp = pxt.BrowserUtils.isWinRT();
+        if (isWinApp) {
+            return;
+        }
+
         if (!this.currFile) {
             const mainPkg = pkg.mainEditorPkg();
-            if (mainPkg && mainPkg.files["main.ts"]) {
-                initPromise = this.loadFileAsync(mainPkg.files["main.ts"]);
+            if (mainPkg && mainPkg.files[pxt.MAIN_TS]) {
+                initPromise = this.loadFileAsync(mainPkg.files[pxt.MAIN_TS]);
             }
             else {
                 return;
@@ -420,7 +425,7 @@ export class Editor extends toolboxeditor.ToolboxEditor {
             pxt.tickEvent(`${tickLang}.convertBlocks`);
 
             const mainPkg = pkg.mainEditorPkg();
-            if (!this.hasBlocks() && !mainPkg && !mainPkg.files["main.blocks"]) {
+            if (!this.hasBlocks() && !mainPkg && !mainPkg.files[pxt.MAIN_BLOCKS]) {
                 pxt.debug(`cancelling convertion to blocks, but main.blocks is missing`);
                 return undefined;
             }
@@ -435,19 +440,19 @@ export class Editor extends toolboxeditor.ToolboxEditor {
                 ? this.currFile.getVirtualFileName(pxt.JAVASCRIPT_PROJECT_NAME)
                 : this.currFile.name;
             if (!this.hasBlocks()) {
-                if (!mainPkg || !mainPkg.files["main.blocks"]) {
+                if (!mainPkg || !mainPkg.files[pxt.MAIN_BLOCKS]) {
                     // Either the project isn't loaded, or it's ts-only
                     if (mainPkg) {
-                        this.parent.setFile(mainPkg.files["main.ts"]);
+                        this.parent.setFile(mainPkg.files[pxt.MAIN_TS]);
                     }
                     return undefined;
                 }
 
                 // The current file doesn't have an associated blocks file, so switch
                 // to main.ts instead
-                this.currFile = mainPkg.files["main.ts"];
+                this.currFile = mainPkg.files[pxt.MAIN_TS];
                 blockFile = this.currFile.getVirtualFileName(pxt.BLOCKS_PROJECT_NAME);
-                tsFile = "main.ts";
+                tsFile = pxt.MAIN_TS;
             }
 
             const failedAsync = (file: string, programTooLarge = false) => {
@@ -624,28 +629,52 @@ export class Editor extends toolboxeditor.ToolboxEditor {
     display(): JSX.Element {
         const showErrorList = pxt.appTarget.appTheme.errorList;
         const isAndroid = pxt.BrowserUtils.isAndroid();
+        const isWinApp = pxt.BrowserUtils.isWinRT();
+        const textElements = isWinApp ? this.getWinAppErrorMsg(): [];
+
         return (
             <div id="monacoEditorArea" className={`monacoEditorArea ${isAndroid ? "android" : ""}`} style={{ direction: 'ltr' }}>
                 {this.isVisible && <div className={`monacoToolboxDiv ${(this.toolbox && !this.toolbox.state.visible && !this.isDebugging()) ? 'invisible' : ''}`}>
                     <toolbox.Toolbox ref={this.handleToolboxRef} editorname="monaco" parent={this} />
                     <div id="monacoDebuggerToolbox"></div>
                 </div>}
-                <div id="monacoEditorRightArea" className="monacoEditorRightArea">
-                    <div id='monacoEditorInner'>
-                        <MonacoFlyout ref={this.handleFlyoutRef} fileType={this.fileType}
-                            blockIdMap={this.blockIdMap}
-                            moveFocusToParent={this.moveFocusToToolbox}
-                            insertSnippet={this.insertSnippet}
-                            setInsertionSnippet={this.setInsertionSnippet}
-                            parent={this.parent} />
+
+                { isWinApp ?
+                    <div id="winAppError">
+                        <img className="ui medium centered image" alt={lf("An image of a shrugging board")} src={pxt.appTarget.appTheme.winAppDeprImage}/>
+                        <div className="ui centered" id="winAppErrorMsg">
+                            {textElements}
+                        </div>
+                    </div>:
+                    <div id="monacoEditorRightArea" className="monacoEditorRightArea">
+                        <div id='monacoEditorInner'>
+                            <MonacoFlyout ref={this.handleFlyoutRef} fileType={this.fileType}
+                                blockIdMap={this.blockIdMap}
+                                moveFocusToParent={this.moveFocusToToolbox}
+                                insertSnippet={this.insertSnippet}
+                                setInsertionSnippet={this.setInsertionSnippet}
+                                parent={this.parent} />
+                        </div>
+                        {showErrorList && <ErrorList isInBlocksEditor={false} onSizeChange={this.setErrorListState}
+                            listenToErrorChanges={this.listenToErrorChanges}
+                            listenToExceptionChanges={this.listenToExceptionChanges} goToError={this.goToError}
+                            startDebugger={this.startDebugger} />}
                     </div>
-                    {showErrorList && <ErrorList isInBlocksEditor={false} onSizeChange={this.setErrorListState}
-                        listenToErrorChanges={this.listenToErrorChanges}
-                        listenToExceptionChanges={this.listenToExceptionChanges} goToError={this.goToError}
-                        startDebugger={this.startDebugger} />}
-                </div>
+                }
             </div>
         )
+    }
+
+    getWinAppErrorMsg(): (JSX.Element | string)[] {
+        const errMsg = lf("Oops! Text editing is only available on the website at {0}. Go {1} for more information.", `https://${pxt.appTarget.name}`, "{1}");
+        const parts = errMsg.split(/\{\d\}/);
+        const textElements: (JSX.Element | string)[] = [
+            parts[0],
+            <a href={"/windows-app"} target="_blank" rel="noopener noreferrer">
+                {lf("here")}
+            </a>,
+            parts[1]]
+        return textElements;
     }
 
     listenToExceptionChanges(handlerKey: string, handler: (exception: pxsim.DebuggerBreakpointMessage, locations: pxtc.LocationInfo[]) => void) {
@@ -1311,6 +1340,13 @@ export class Editor extends toolboxeditor.ToolboxEditor {
         let mode = pxt.editor.FileType.Text;
         this.currSource = file.content;
 
+
+        const isWinApp = pxt.BrowserUtils.isWinRT();
+        if (isWinApp) {
+            this.currFile = file;
+            return Promise.resolve();
+        }
+
         let loading = document.createElement("div");
         loading.className = "ui inverted loading dimmer active";
         let editorRightArea = document.getElementById("monacoEditorRightArea");
@@ -1431,7 +1467,8 @@ export class Editor extends toolboxeditor.ToolboxEditor {
             }).finally(() => {
                 editorRightArea.removeChild(loading);
                 // Do Not Remove: This is used by the skillmap
-                if (this.parent.isTutorial()) pxt.tickEvent("tutorial.editorLoaded")
+                if (this.parent.isTutorial()) this.parent.onTutorialLoaded();
+
             });
     }
 
